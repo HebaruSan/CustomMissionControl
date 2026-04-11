@@ -1,0 +1,22 @@
+{
+    "NAME": "CustomMissionControl",
+    "URL": "https://github.com/CrapShot79/CustomMissionControl/raw/main/CustomMissionControl.version",
+    "DOWNLOAD": "https://github.com/CrapShot79/CustomMissionControl/releases",
+    "AUTHOR": "CrapShot79",
+    "VERSION": {
+        "MAJOR": 1,
+        "MINOR": 0,
+        "PATCH": 0,
+        "BUILD": 0
+    },
+    "KSP_VERSION": {
+        "MAJOR": 1,
+        "MINOR": 12,
+        "PATCH": 5
+    },
+    "KSP_VERSION_MIN": {
+        "MAJOR": 1,
+        "MINOR": 8,
+        "PATCH": 0
+    }
+}

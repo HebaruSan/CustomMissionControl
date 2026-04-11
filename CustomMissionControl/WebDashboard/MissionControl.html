@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Mission Control Console</title>
+    <style>
+        :root {
+            --bg-color: #05070a;
+            --panel-bg: #0d1117;
+            --accent: #00f0ff;
+            --danger: #ff003c;
+            --text-main: #00f0ff;
+            --text-muted: #005f66;
+            --lf-color: #f59e0b;
+            --ox-color: #3b82f6;
+            --mp-color: #9ca3af;
+            --sf-color: #ef4444;
+            --orbit-color: #a855f7;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Verdana', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #launch-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        #launch-btn {
+            padding: 20px 40px;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            background: transparent;
+            transition: all 0.3s;
+        }
+
+        #launch-btn:hover {
+            background: var(--accent);
+            color: var(--bg-color);
+            box-shadow: 0 0 30px var(--accent);
+        }
+
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 118, 0.03));
+            z-index: 100;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .crt-flicker { animation: flicker 0.15s infinite; }
+        @keyframes flicker {
+            0% { opacity: 0.99; }
+            50% { opacity: 1; }
+            100% { opacity: 0.98; }
+        }
+
+        .header-bar {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+
+        #vessel-name { font-size: 1.5rem; font-weight: bold; letter-spacing: 2px; }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            flex-grow: 1;
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+
+        .active { opacity: 1 !important; }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid #1f2937;
+            border-radius: 4px;
+            padding: 15px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 0;
+        }
+
+        .label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
+        .value { font-size: 2.2rem; font-weight: bold; font-family: 'Courier New', monospace; white-space: nowrap; }
+        .unit { font-size: 0.9rem; opacity: 0.6; }
+
+        .navball-container {
+            width: 140px; height: 140px; border-radius: 50%; border: 3px solid #374151;
+            position: relative; overflow: hidden; margin: 5px 0;
+        }
+
+        .navball-roll { width: 100%; height: 100%; position: absolute; }
+        .navball-pitch { width: 200%; height: 200%; position: absolute; top: -50%; left: -50%; }
+        .navball-sky { height: 50%; width: 100%; background: #004d4d; }
+        .navball-ground { height: 50%; width: 100%; background: #331a00; border-top: 1px solid var(--accent); }
+        .navball-reticle { position: absolute; top: 50%; left: 50%; width: 30px; height: 2px; background: var(--accent); transform: translate(-50%, -50%); z-index: 10; }
+
+        .res-row { margin-bottom: 15px; width: 100%; position: relative; }
+        .res-info { display: flex; justify-content: space-between; font-size: 0.6rem; margin-bottom: 2px; font-weight: bold; }
+        .bar-bg { width: 100%; height: 10px; background-color: #05070a; border-radius: 2px; overflow: hidden; position: relative; }
+        .bar-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+        
+        .stage-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: rgba(255, 255, 255, 0.6);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .orbit-map-container { width: 100%; height: 100%; min-height: 250px; background: #000; border: 1px solid #1f2937; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        #status-light { width: 12px; height: 12px; border-radius: 50%; background-color: #300; display: inline-block; margin-right: 10px; }
+        .link-online { background-color: #0f0 !important; box-shadow: 0 0 10px #0f0; }
+    </style>
+</head>
+<body class="crt-flicker">
+
+    <div id="launch-overlay" onclick="engageLink()">
+        <button id="launch-btn">Engage Data Link</button>
+        <p style="color: var(--text-muted); margin-top: 20px; letter-spacing: 2px;">CLICK TO INITIALIZE FULLSCREEN CONSOLE</p>
+    </div>
+
+    <div class="header-bar">
+        <div><span id="status-light"></span><span id="vessel-name">LINK OFFLINE</span></div>
+        <div id="mission-situation" style="font-size: 0.8rem; color: var(--text-muted);">AWAITING SIGNAL...</div>
+    </div>
+
+    <div class="dashboard" id="main-dash">
+        <div style="display: flex; flex-direction: column; gap: 20px; min-height: 0;">
+            <div class="panel">
+                <div class="label">Radar Alt</div>
+                <div class="value" id="alt">0 <span class="unit">m</span></div>
+            </div>
+            <div class="panel">
+                <div class="label">Srf Velocity</div>
+                <div class="value" id="vel">0 <span class="unit">m/s</span></div>
+            </div>
+            <div class="panel">
+                <div class="label">Time to AP</div>
+                <div class="value" id="tta" style="font-size: 1.8rem;">00:00:00</div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px; min-height: 0;">
+            <div class="panel" style="align-items: center;">
+                <div class="label" style="width: 100%;">Attitude</div>
+                <div class="navball-container">
+                    <div class="navball-roll" id="nav-roll">
+                        <div class="navball-pitch" id="nav-pitch"><div class="navball-sky"></div><div class="navball-ground"></div></div>
+                    </div>
+                    <div class="navball-reticle"></div>
+                </div>
+                <div style="font-size: 0.7rem; color: var(--accent);">P: <span id="pitch">0</span>° | R: <span id="roll">0</span>°</div>
+            </div>
+            <div class="panel" style="flex-grow: 1;">
+                <div class="label">Orbital Projection</div>
+                <div class="orbit-map-container"><canvas id="orbitCanvas"></canvas></div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px; min-height: 0;">
+            <div class="panel">
+                <div class="label">Apoapsis / Periapsis</div>
+                <div class="value" id="ap" style="font-size: 1.8rem; color: var(--orbit-color);">0 <span class="unit">m</span></div>
+                <div class="sub-value">PE: <span id="pe">0</span> m</div>
+            </div>
+            
+            <div class="panel" style="flex-grow: 1;">
+                <div class="label">Consumables</div>
+                
+                <div class="res-row">
+                    <div class="res-info">
+                        <span style="color: var(--lf-color);">LIQUID FUEL</span>
+                        <span><span id="lf-pct">0</span>% / T-DEP: <span id="lf-time">---</span></span>
+                    </div>
+                    <div class="bar-bg" id="lf-container">
+                        <div class="bar-fill" id="lf-bar" style="background-color: var(--lf-color);"></div>
+                    </div>
+                </div>
+
+                <div class="res-row">
+                    <div class="res-info">
+                        <span style="color: var(--ox-color);">OXIDIZER</span>
+                        <span><span id="ox-pct">0</span>% / T-DEP: <span id="ox-time">---</span></span>
+                    </div>
+                    <div class="bar-bg"><div class="bar-fill" id="ox-bar" style="background-color: var(--ox-color);"></div></div>
+                </div>
+
+                <div class="res-row">
+                    <div class="res-info">
+                        <span style="color: var(--sf-color);">SOLID FUEL</span>
+                        <span><span id="sf-pct">0</span>% / T-DEP: <span id="sf-time">---</span></span>
+                    </div>
+                    <div class="bar-bg"><div class="bar-fill" id="sf-bar" style="background-color: var(--sf-color);"></div></div>
+                </div>
+
+                <div class="res-row">
+                    <div class="res-info">
+                        <span style="color: var(--mp-color);">MONOPROP</span>
+                        <span><span id="mp-pct">0</span>% / T-DEP: <span id="mp-time">---</span></span>
+                    </div>
+                    <div class="bar-bg"><div class="bar-fill" id="mp-bar" style="background-color: var(--mp-color);"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SERVER_URL = "http://localhost:8080/telemetry/";
+        const canvas = document.getElementById('orbitCanvas');
+        const ctx = canvas.getContext('2d');
+        let bootup = false;
+
+        const elements = {
+            name: document.getElementById('vessel-name'),
+            sit: document.getElementById('mission-situation'),
+            light: document.getElementById('status-light'),
+            dash: document.getElementById('main-dash'),
+            alt: document.getElementById('alt'),
+            vel: document.getElementById('vel'),
+            ap: document.getElementById('ap'),
+            pe: document.getElementById('pe'),
+            tta: document.getElementById('tta'),
+            pitch: document.getElementById('pitch'),
+            roll: document.getElementById('roll'),
+            navR: document.getElementById('nav-roll'),
+            navP: document.getElementById('nav-pitch'),
+            lfContainer: document.getElementById('lf-container')
+        };
+
+        function engageLink() {
+            if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+            document.getElementById('launch-overlay').style.display = 'none';
+        }
+
+        function formatTime(s) {
+            if (s <= 0 || isNaN(s)) return "---";
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = Math.floor(s % 60);
+            return [h, m, sec].map(v => v.toString().padStart(2, '0')).join(':');
+        }
+
+        function drawOrbit(data) {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const maxRad = Math.max(data.ap + data.rad, data.rad * 2);
+            const scale = (canvas.height / 2.2) / (maxRad || 1);
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, data.rad * scale, 0, Math.PI * 2);
+            ctx.strokeStyle = '#005f66';
+            ctx.stroke();
+
+            const r_ap = data.ap + data.rad, r_pe = data.pe + data.rad;
+            const a = (r_ap + r_pe) / 2, e = data.ecc, b = a * Math.sqrt(Math.max(0, 1 - e * e));
+            const focusDist = a * e;
+
+            ctx.beginPath();
+            ctx.ellipse(centerX + (focusDist * scale), centerY, a * scale, b * scale, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+            ctx.stroke();
+
+            const r_v = (a * (1 - e * e)) / (1 + e * Math.cos(data.tanom));
+            const vx = centerX + (r_v * Math.cos(data.tanom + Math.PI) * scale);
+            const vy = centerY + (r_v * Math.sin(data.tanom + Math.PI) * scale);
+            ctx.fillStyle = '#00f0ff';
+            ctx.fillRect(vx-2, vy-2, 4, 4);
+        }
+
+        async function update() {
+            try {
+                const res = await fetch(SERVER_URL);
+                const d = await res.json();
+                if (d.close) { window.close(); return; }
+
+                if (!bootup) {
+                    elements.dash.classList.add('active');
+                    elements.light.classList.add('link-online');
+                    bootup = true;
+                }
+
+                elements.name.innerText = d.name.toUpperCase();
+                elements.sit.innerText = "SITUATION: " + d.situation.toUpperCase();
+                elements.alt.innerHTML = Math.round(d.altitude).toLocaleString() + ' <span class="unit">m</span>';
+                elements.vel.innerHTML = Math.round(d.velocity).toLocaleString() + ' <span class="unit">m/s</span>';
+                elements.ap.innerHTML = Math.round(d.ap).toLocaleString() + ' <span class="unit">m</span>';
+                elements.pe.innerText = Math.round(d.pe).toLocaleString();
+                elements.tta.innerText = formatTime(d.tta);
+
+                elements.pitch.innerText = d.pitch.toFixed(1);
+                elements.roll.innerText = d.roll.toFixed(1);
+                elements.navR.style.transform = `rotate(${-d.roll}deg)`;
+                elements.navP.style.transform = `translateY(${(-d.pitch / 90) * 70}px)`;
+
+                // Resource Updates
+                const resTypes = ['lf', 'ox', 'sf', 'mp'];
+                resTypes.forEach(t => {
+                    document.getElementById(t + '-bar').style.width = d[t] + '%';
+                    document.getElementById(t + '-pct').innerText = d[t].toFixed(1);
+                    document.getElementById(t + '-time').innerText = formatTime(d[t + 'T']);
+                });
+
+                // Update Liquid Fuel Stage Markers
+                const existingMarkers = elements.lfContainer.querySelectorAll('.stage-marker');
+                existingMarkers.forEach(m => m.remove());
+                
+                if (d.markers) {
+                    d.markers.forEach(mPct => {
+                        const marker = document.createElement('div');
+                        marker.className = 'stage-marker';
+                        marker.style.left = mPct + '%';
+                        elements.lfContainer.appendChild(marker);
+                    });
+                }
+
+                drawOrbit(d);
+            } catch (e) {
+                elements.name.innerText = "LINK OFFLINE";
+                elements.light.classList.remove('link-online');
+            }
+        }
+        setInterval(update, 100);
+    </script>
+</body>
+</html>
